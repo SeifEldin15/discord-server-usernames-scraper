@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const bot = require('./bot');
 
@@ -37,5 +37,34 @@ ipcMain.on('start-scraping', async (event, config) => {
         event.reply('scraping-complete');
     } catch (error) {
         event.reply('scraping-error', error.message);
+    }
+});
+
+ipcMain.on('get-default-paths', async (event) => {
+    const defaultPaths = await bot.getDefaultPaths();
+    event.reply('default-paths', defaultPaths);
+});
+
+ipcMain.on('browse-chrome', async (event) => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: 'Executables', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+        event.reply('selected-chrome-path', result.filePaths[0]);
+    }
+});
+
+ipcMain.on('browse-userdata', async (event) => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+        event.reply('selected-userdata-path', result.filePaths[0]);
     }
 });

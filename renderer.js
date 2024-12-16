@@ -1,4 +1,31 @@
 const { ipcRenderer } = require('electron');
+const path = require('path');
+
+// Load default paths when the window loads
+window.addEventListener('DOMContentLoaded', async () => {
+    ipcRenderer.send('get-default-paths');
+});
+
+ipcRenderer.on('default-paths', (event, paths) => {
+    document.getElementById('chromePath').value = paths.chromePath || '';
+    document.getElementById('userDataDir').value = paths.userDataDir || '';
+});
+
+document.getElementById('browseChrome').addEventListener('click', () => {
+    ipcRenderer.send('browse-chrome');
+});
+
+document.getElementById('browseUserData').addEventListener('click', () => {
+    ipcRenderer.send('browse-userdata');
+});
+
+ipcRenderer.on('selected-chrome-path', (event, path) => {
+    document.getElementById('chromePath').value = path;
+});
+
+ipcRenderer.on('selected-userdata-path', (event, path) => {
+    document.getElementById('userDataDir').value = path;
+});
 
 document.getElementById('startScraping').addEventListener('click', () => {
     const config = {

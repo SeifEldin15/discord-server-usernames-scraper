@@ -53,6 +53,28 @@
             border-radius: 4px;
             margin-top: 10px;
         }
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-group input {
+            flex: 1;
+        }
+        
+        .browse-btn {
+            background-color: #4f545c;
+            padding: 8px 15px;
+        }
+        
+        .browse-btn:hover {
+            background-color: #5d6269;
+        }
+        
+        input[readonly] {
+            background-color: #40444b;
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -64,11 +86,17 @@
         </div>
         <div class="form-group">
             <label for="chromePath">Chrome Path:</label>
-            <input type="text" id="chromePath" value="C:\Program Files\Google\Chrome\Application\chrome.exe">
+            <div class="input-group">
+                <input type="text" id="chromePath" readonly>
+                <button id="browseChrome" class="browse-btn">Browse</button>
+            </div>
         </div>
         <div class="form-group">
             <label for="userDataDir">User Data Directory:</label>
-            <input type="text" id="userDataDir" value="C:\Users\your-system-username\AppData\Local\Google\Chrome\User Data">
+            <div class="input-group">
+                <input type="text" id="userDataDir" readonly>
+                <button id="browseUserData" class="browse-btn">Browse</button>
+            </div>
         </div>
         <button id="startScraping">Start Scraping</button>
         <div id="status">Status: Ready</div>

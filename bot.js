@@ -1,12 +1,37 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
+const path = require('path');
+
+async function getDefaultPaths() {
+    const platform = process.platform;
+    let chromePath;
+    let userDataDir;
+
+    if (platform === 'win32') {
+        const username = process.env.USERNAME;
+        chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+        if (!fs.existsSync(chromePath)) {
+            chromePath = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe';
+        }
+        userDataDir = path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\User Data');
+    } else if (platform === 'darwin') {
+        chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+        userDataDir = path.join(process.env.HOME, 'Library/Application Support/Google/Chrome');
+    } else if (platform === 'linux') {
+        chromePath = '/usr/bin/google-chrome';
+        userDataDir = path.join(process.env.HOME, '.config/google-chrome');
+    }
+
+    return { chromePath, userDataDir };
+}
 
 async function run(config, logCallback) {
+    const defaultPaths = await getDefaultPaths();
     const browser = await puppeteer.launch({
-        executablePath: config.chromePath,
+        executablePath: config.chromePath || defaultPaths.chromePath,
         headless: false,
         args: ['--profile-directory="your-profile-name-chrome"'],
-        userDataDir: config.userDataDir
+        userDataDir: config.userDataDir || defaultPaths.userDataDir
     });
     const page = await browser.newPage();
     
@@ -42,4 +67,4 @@ async function run(config, logCallback) {
     await browser.close();
 }
 
-module.exports = { run };
+module.exports = { run, getDefaultPaths };
