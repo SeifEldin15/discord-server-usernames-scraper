@@ -40,6 +40,10 @@ document.getElementById('startScraping').addEventListener('click', () => {
     ipcRenderer.send('start-scraping', config);
 });
 
+document.getElementById('openList').addEventListener('click', () => {
+    ipcRenderer.send('open-list');
+});
+
 function appendToLog(message) {
     const log = document.getElementById('log');
     log.innerHTML += `${message}<br>`;

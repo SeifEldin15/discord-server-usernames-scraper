@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const bot = require('./bot');
+const fs = require('fs');
 
 function createWindow() {
     const win = new BrowserWindow({
@@ -66,5 +67,18 @@ ipcMain.on('browse-userdata', async (event) => {
     
     if (!result.canceled && result.filePaths.length > 0) {
         event.reply('selected-userdata-path', result.filePaths[0]);
+    }
+});
+
+ipcMain.on('open-list', async () => {
+    const filePath = path.join(process.cwd(), 'ariaLabels.json');
+    if (fs.existsSync(filePath)) {
+        shell.openPath(filePath);
+    } else {
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'File Not Found',
+            message: 'The username list has not been created yet. Please run the scraper first.'
+        });
     }
 });
