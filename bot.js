@@ -59,7 +59,7 @@ async function run(config, logCallback) {
         await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
 
         logCallback('Extracting aria labels...');
-        const ariaLabels = await page.evaluate(() => {
+        const Output = await page.evaluate(() => {
             const elements = document.querySelectorAll('.wrapper_c51b4e');
             const labels = Array.from(elements).map(el => {
                 const label = el.getAttribute('aria-label');
@@ -68,12 +68,12 @@ async function run(config, logCallback) {
             return labels;
         });
 
-        logCallback(`Found ${ariaLabels.length} aria labels`);
+        logCallback(`Found ${Output.length} aria labels`);
         
-        if (ariaLabels.length > 0) {
-            const ariaLabelsJson = JSON.stringify(ariaLabels, null, 2);
-            fs.writeFileSync('ariaLabels.json', ariaLabelsJson);
-            logCallback('Successfully saved ariaLabels.json');
+        if (Output.length > 0) {
+            const OutputJson = JSON.stringify(Output, null, 2);
+            fs.writeFileSync('output.json', OutputJson);
+            logCallback('Successfully saved Output.json');
         } else {
             logCallback('No aria labels found to save');
         }
