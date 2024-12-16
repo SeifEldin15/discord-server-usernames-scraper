@@ -1,4 +1,4 @@
-# Discord Scraper Bot
+# Discord bot Bot
 
 ## Overview
 This bot uses Puppeteer to scrape aria labels from a Discord server. It navigates to a specified server and extracts the aria labels of certain elements.

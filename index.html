@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Discord bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #36393f;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #202225;
+            background-color: #40444b;
+            color: #ffffff;
+        }
+        button {
+            background-color: #7289da;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #677bc4;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #40444b;
+        }
+        #log {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #40444b;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Discord bot</h1>
+        <div class="form-group">
+            <label for="discordUrl">Discord Server URL:</label>
+            <input type="text" id="discordUrl" placeholder="Enter Discord server URL">
+        </div>
+        <div class="form-group">
+            <label for="chromePath">Chrome Path:</label>
+            <input type="text" id="chromePath" value="C:\Program Files\Google\Chrome\Application\chrome.exe">
+        </div>
+        <div class="form-group">
+            <label for="userDataDir">User Data Directory:</label>
+            <input type="text" id="userDataDir" value="C:\Users\your-system-username\AppData\Local\Google\Chrome\User Data">
+        </div>
+        <button id="startScraping">Start Scraping</button>
+        <div id="status">Status: Ready</div>
+        <div id="log"></div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>
