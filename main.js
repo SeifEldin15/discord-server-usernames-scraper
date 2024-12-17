@@ -71,7 +71,7 @@ ipcMain.on('browse-userdata', async (event) => {
 });
 
 ipcMain.on('open-list', async () => {
-    const filePath = path.join(process.cwd(), 'ariaLabels.json');
+    const filePath = path.join(process.cwd(), 'Output.json');
     if (fs.existsSync(filePath)) {
         shell.openPath(filePath);
     } else {
