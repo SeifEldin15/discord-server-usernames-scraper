@@ -82,3 +82,14 @@ ipcMain.on('open-list', async () => {
         });
     }
 });
+
+ipcMain.on('start-inviting', async (event, config) => {
+    try {
+        await bot.sendInvites(config, (message) => {
+            event.reply('log-message', message);
+        });
+        event.reply('inviting-complete');
+    } catch (error) {
+        event.reply('inviting-error', error.message);
+    }
+});

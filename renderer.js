@@ -44,6 +44,19 @@ document.getElementById('openList').addEventListener('click', () => {
     ipcRenderer.send('open-list');
 });
 
+document.getElementById('inviteAll').addEventListener('click', () => {
+    const config = {
+        discordUrl: document.getElementById('discordUrl').value,
+        chromePath: document.getElementById('chromePath').value,
+        userDataDir: document.getElementById('userDataDir').value
+    };
+    
+    document.getElementById('status').textContent = 'Status: Sending invites...';
+    document.getElementById('inviteAll').disabled = true;
+    
+    ipcRenderer.send('start-inviting', config);
+});
+
 function appendToLog(message) {
     const log = document.getElementById('log');
     log.innerHTML += `${message}<br>`;
@@ -62,4 +75,14 @@ ipcRenderer.on('scraping-complete', () => {
 ipcRenderer.on('scraping-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Error - ${error}`;
     document.getElementById('startScraping').disabled = false;
+});
+
+ipcRenderer.on('inviting-complete', () => {
+    document.getElementById('status').textContent = 'Status: Invites Sent';
+    document.getElementById('inviteAll').disabled = false;
+});
+
+ipcRenderer.on('inviting-error', (event, error) => {
+    document.getElementById('status').textContent = `Status: Invite Error - ${error}`;
+    document.getElementById('inviteAll').disabled = false;
 });

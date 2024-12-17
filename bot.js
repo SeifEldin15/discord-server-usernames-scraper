@@ -85,4 +85,100 @@ async function run(config, logCallback) {
     }
 }
 
-module.exports = { run, getDefaultPaths };
+async function sendInvites(config, logCallback) {
+    // First check if output.json exists
+    const outputPath = path.join(process.cwd(), 'output.json');
+    if (!fs.existsSync(outputPath)) {
+        throw new Error('output.json not found. Please run the scraper first.');
+    }
+
+    // Read and parse the output.json file
+    const usernames = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    if (!usernames || usernames.length === 0) {
+        throw new Error('No usernames found in output.json');
+    }
+
+    logCallback(`Loaded ${usernames.length} usernames from output.json`);
+
+    const browser = await puppeteer.launch({
+        executablePath: config.chromePath,
+        userDataDir: config.userDataDir,
+        headless: false,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox'
+        ]
+    });
+
+    try {
+        const page = await browser.newPage();
+        await page.goto(config.discordUrl);
+        
+        // Wait for the page to load
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        for (const username of usernames) {
+            try {
+                logCallback(`Processing user: ${username}`);
+
+                // Get all member elements
+                const members = await page.evaluate((targetUsername) => {
+                    const elements = document.querySelectorAll('[aria-label]');
+                    for (const el of elements) {
+                        const ariaLabel = el.getAttribute('aria-label');
+                        if (ariaLabel && ariaLabel.startsWith(targetUsername)) {
+                            return el.getAttribute('aria-label');
+                        }
+                    }
+                    return null;
+                }, username);
+
+                if (!members) {
+                    logCallback(`Could not find member: ${username}`);
+                    continue;
+                }
+
+                // Click on the member using the full aria-label (including status)
+                const memberSelector = `[aria-label="${members}"]`;
+                await page.waitForSelector(memberSelector, { timeout: 5000 });
+                await page.click(memberSelector);
+
+                // Try both input selectors
+                let messageInput = null;
+                try {
+                    // First attempt: original class selector
+                    messageInput = await page.waitForSelector('.textAreaForUserProfile_bdf0de', { timeout: 3000 });
+                } catch (inputError) {
+                    logCallback('First input selector not found, trying aria-label selector...');
+                    // Second attempt: aria-label selector
+                    messageInput = await page.waitForSelector(`[aria-label^="${username}"]`, { timeout: 3000 });
+                }
+
+                if (!messageInput) {
+                    throw new Error('Could not find message input field');
+                }
+
+                // Type the message using the found input element
+                await messageInput.type('hi');
+                
+                // Small delay before pressing Enter
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Press Enter to send
+                await page.keyboard.press('Enter');
+                
+                // Wait longer after sending to avoid rate limits
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                logCallback(`Successfully sent message to ${username}`);
+            } catch (error) {
+                logCallback(`Failed to send message to ${username}: ${error.message}`);
+                continue;
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+}
+
+module.exports = { run, getDefaultPaths, sendInvites };
