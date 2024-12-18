@@ -75,6 +75,39 @@
             background-color: #40444b;
             cursor: default;
         }
+        
+        #editorContainer {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background-color: #2f3136;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #jsonEditor {
+            width: 100%;
+            height: calc(100% - 50px);
+            background-color: #40444b;
+            color: #ffffff;
+            border: 1px solid #202225;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            resize: none;
+        }
     </style>
 </head>
 <body>
@@ -98,9 +131,25 @@
                 <button id="browseUserData" class="browse-btn">Browse</button>
             </div>
         </div>
+        <div class="form-group">
+            <label for="customMessage">Custom Message:</label>
+            <input type="text" id="customMessage" placeholder="Enter your custom message">
+        </div>
         <button id="startScraping">Start Scraping</button>
-        <button id="openList" style="margin-left: 10px;">Open Username List</button>
-        <button id="inviteAll">Invite All</button>
+        <!-- <button id="openList" style="margin-left: 10px;">Open Username List</button> -->
+        <button id="inviteAll">Message From List</button>
+        <button id="messageAll" style="margin-left: 10px;">Message All</button>
+        <button id="openEditor" style="margin-left: 10px;">Edit List</button>
+        
+        <div id="editorContainer" style="display: none;">
+            <div class="editor-header">
+                <h3>Edit Username List</h3>
+                <button id="saveEditor">Save</button>
+                <button id="closeEditor">Close</button>
+            </div>
+            <textarea id="jsonEditor"></textarea>
+        </div>
+        
         <div id="status">Status: Ready</div>
         <div id="log"></div>
     </div>

@@ -48,13 +48,33 @@ document.getElementById('inviteAll').addEventListener('click', () => {
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
-        userDataDir: document.getElementById('userDataDir').value
+        userDataDir: document.getElementById('userDataDir').value,
+        customMessage: document.getElementById('customMessage').value || 'hi'
     };
     
     document.getElementById('status').textContent = 'Status: Sending invites...';
     document.getElementById('inviteAll').disabled = true;
     
     ipcRenderer.send('start-inviting', config);
+});
+
+document.getElementById('messageAll').addEventListener('click', () => {
+    const config = {
+        discordUrl: document.getElementById('discordUrl').value,
+        chromePath: document.getElementById('chromePath').value,
+        userDataDir: document.getElementById('userDataDir').value,
+        customMessage: document.getElementById('customMessage').value || 'hi'
+    };
+    
+    if (!config.customMessage.trim()) {
+        document.getElementById('status').textContent = 'Status: Please enter a message';
+        return;
+    }
+    
+    document.getElementById('status').textContent = 'Status: Sending messages...';
+    document.getElementById('messageAll').disabled = true;
+    
+    ipcRenderer.send('start-messaging-all', config);
 });
 
 function appendToLog(message) {
@@ -85,4 +105,62 @@ ipcRenderer.on('inviting-complete', () => {
 ipcRenderer.on('inviting-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Invite Error - ${error}`;
     document.getElementById('inviteAll').disabled = false;
+});
+
+ipcRenderer.on('messaging-complete', () => {
+    document.getElementById('status').textContent = 'Status: Messages Sent';
+    document.getElementById('messageAll').disabled = false;
+});
+
+ipcRenderer.on('messaging-error', (event, error) => {
+    document.getElementById('status').textContent = `Status: Messaging Error - ${error}`;
+    document.getElementById('messageAll').disabled = false;
+});
+
+document.getElementById('openEditor').addEventListener('click', () => {
+    const editorContainer = document.getElementById('editorContainer');
+    const jsonEditor = document.getElementById('jsonEditor');
+    
+    // Read the current output.json file
+    ipcRenderer.send('read-json-file');
+});
+
+document.getElementById('closeEditor').addEventListener('click', () => {
+    document.getElementById('editorContainer').style.display = 'none';
+});
+
+document.getElementById('saveEditor').addEventListener('click', () => {
+    const jsonEditor = document.getElementById('jsonEditor');
+    try {
+        // Validate JSON
+        JSON.parse(jsonEditor.value);
+        
+        // Send to main process to save
+        ipcRenderer.send('save-json-file', jsonEditor.value);
+    } catch (error) {
+        document.getElementById('status').textContent = 'Status: Invalid JSON format';
+    }
+});
+
+ipcRenderer.on('json-file-content', (event, content) => {
+    const jsonEditor = document.getElementById('jsonEditor');
+    const editorContainer = document.getElementById('editorContainer');
+    
+    try {
+        // Format the JSON with proper indentation
+        const formattedJson = JSON.stringify(JSON.parse(content), null, 2);
+        jsonEditor.value = formattedJson;
+        editorContainer.style.display = 'block';
+    } catch (error) {
+        document.getElementById('status').textContent = 'Status: Error loading JSON file';
+    }
+});
+
+ipcRenderer.on('json-save-success', () => {
+    document.getElementById('status').textContent = 'Status: JSON file saved successfully';
+    document.getElementById('editorContainer').style.display = 'none';
+});
+
+ipcRenderer.on('json-save-error', (event, error) => {
+    document.getElementById('status').textContent = `Status: Error saving JSON - ${error}`;
 });

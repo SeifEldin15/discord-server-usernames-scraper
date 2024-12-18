@@ -25,6 +25,23 @@ async function getDefaultPaths() {
     return { chromePath, userDataDir };
 }
 
+async function getSelfUsername(page) {
+    try {
+        const selfUsername = await page.evaluate(() => {
+            const avatarElement = document.querySelector('.avatar_b2ca13');
+            if (avatarElement) {
+                const ariaLabel = avatarElement.getAttribute('aria-label');
+                return ariaLabel || null;
+            }
+            return null;
+        });
+        return selfUsername;
+    } catch (error) {
+        console.error('Error getting self username:', error);
+        return null;
+    }
+}
+
 async function run(config, logCallback) {
     try {
         const defaultPaths = await getDefaultPaths();
@@ -52,6 +69,12 @@ async function run(config, logCallback) {
         logCallback('Navigating to Discord...');
         await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
         
+        logCallback('Getting self username...');
+        const selfUsername = await getSelfUsername(page);
+        if (selfUsername) {
+            logCallback(`Found self username: ${selfUsername}`);
+        }
+
         logCallback('Waiting for page to load completely...');
         await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -59,14 +82,15 @@ async function run(config, logCallback) {
         await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
 
         logCallback('Extracting aria labels...');
-        const Output = await page.evaluate(() => {
+        const Output = await page.evaluate((selfUser) => {
             const elements = document.querySelectorAll('.wrapper_c51b4e');
             const labels = Array.from(elements).map(el => {
                 const label = el.getAttribute('aria-label');
                 return label ? label.trim() : null;
-            }).filter(label => label !== null);
+            })
+            .filter(label => label !== null && label !== selfUser);
             return labels;
-        });
+        }, selfUsername);
 
         logCallback(`Found ${Output.length} aria labels`);
         
@@ -114,10 +138,21 @@ async function sendInvites(config, logCallback) {
         const page = await browser.newPage();
         await page.goto(config.discordUrl);
         
+        // Get self username first
+        const selfUsername = await getSelfUsername(page);
+        if (selfUsername) {
+            logCallback(`Found self username: ${selfUsername}`);
+        }
+
         // Wait for the page to load
         await new Promise(resolve => setTimeout(resolve, 5000));
 
         for (const username of usernames) {
+            // Skip if this is the self username
+            if (username === selfUsername) {
+                logCallback(`Skipping self username: ${username}`);
+                continue;
+            }
             try {
                 logCallback(`Processing user: ${username}`);
 
@@ -158,8 +193,8 @@ async function sendInvites(config, logCallback) {
                     throw new Error('Could not find message input field');
                 }
 
-                // Type the message using the found input element
-                await messageInput.type('hi');
+                // Type the custom message instead of 'hi'
+                await messageInput.type(config.customMessage || 'hi');
                 
                 // Small delay before pressing Enter
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -181,4 +216,107 @@ async function sendInvites(config, logCallback) {
     }
 }
 
-module.exports = { run, getDefaultPaths, sendInvites };
+async function messageAll(config, logCallback) {
+    // First run the scraper to update the output.json
+    logCallback('Running scraper to update user list...');
+    try {
+        await run(config, logCallback);
+        logCallback('Successfully updated output.json');
+    } catch (error) {
+        logCallback(`Failed to update user list: ${error.message}`);
+        throw error;
+    }
+
+    const outputPath = path.join(process.cwd(), 'output.json');
+    const usernames = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    if (!usernames || usernames.length === 0) {
+        throw new Error('No usernames found in output.json');
+    }
+
+    logCallback(`Loaded ${usernames.length} usernames from output.json`);
+
+    for (const username of usernames) {
+        const browser = await puppeteer.launch({
+            executablePath: config.chromePath,
+            userDataDir: config.userDataDir,
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
+        });
+
+        try {
+            logCallback(`Processing user: ${username}`);
+            const page = await browser.newPage();
+            
+            // Navigate to Discord
+            await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
+            
+            // Get self username first
+            const selfUsername = await getSelfUsername(page);
+            if (selfUsername && username === selfUsername) {
+                logCallback(`Skipping self username: ${username}`);
+                continue;
+            }
+            
+            // Wait for the page to load
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            // Get all member elements
+            const members = await page.evaluate((targetUsername) => {
+                const elements = document.querySelectorAll('[aria-label]');
+                for (const el of elements) {
+                    const ariaLabel = el.getAttribute('aria-label');
+                    if (ariaLabel && ariaLabel.startsWith(targetUsername)) {
+                        return el.getAttribute('aria-label');
+                    }
+                }
+                return null;
+            }, username);
+
+            if (!members) {
+                logCallback(`Could not find member: ${username}`);
+                continue;
+            }
+
+            // Click on the member using the full aria-label
+            const memberSelector = `[aria-label="${members}"]`;
+            await page.waitForSelector(memberSelector, { timeout: 5000 });
+            await page.click(memberSelector);
+
+            // Try both input selectors
+            let messageInput = null;
+            try {
+                messageInput = await page.waitForSelector('.textAreaForUserProfile_bdf0de', { timeout: 3000 });
+            } catch (inputError) {
+                logCallback('First input selector not found, trying aria-label selector...');
+                messageInput = await page.waitForSelector(`[aria-label^="${username}"]`, { timeout: 3000 });
+            }
+
+            if (!messageInput) {
+                throw new Error('Could not find message input field');
+            }
+
+            // Type the custom message
+            await messageInput.type(config.customMessage);
+            
+            // Small delay before pressing Enter
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Press Enter to send
+            await page.keyboard.press('Enter');
+            
+            // Wait longer between messages to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            logCallback(`Successfully sent message to ${username}`);
+        } catch (error) {
+            logCallback(`Failed to send message to ${username}: ${error.message}`);
+        } finally {
+            await browser.close();
+        }
+    }
+}
+
+module.exports = { run, getDefaultPaths, sendInvites, messageAll };

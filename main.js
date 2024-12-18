@@ -93,3 +93,34 @@ ipcMain.on('start-inviting', async (event, config) => {
         event.reply('inviting-error', error.message);
     }
 });
+
+ipcMain.on('start-messaging-all', async (event, config) => {
+    try {
+        await bot.messageAll(config, (message) => {
+            event.reply('log-message', message);
+        });
+        event.reply('messaging-complete');
+    } catch (error) {
+        event.reply('messaging-error', error.message);
+    }
+});
+
+ipcMain.on('read-json-file', (event) => {
+    try {
+        const filePath = path.join(process.cwd(), 'output.json');
+        const content = fs.readFileSync(filePath, 'utf8');
+        event.reply('json-file-content', content);
+    } catch (error) {
+        event.reply('json-file-content', '[]');
+    }
+});
+
+ipcMain.on('save-json-file', (event, content) => {
+    try {
+        const filePath = path.join(process.cwd(), 'output.json');
+        fs.writeFileSync(filePath, content);
+        event.reply('json-save-success');
+    } catch (error) {
+        event.reply('json-save-error', error.message);
+    }
+});
