@@ -120,26 +120,29 @@ async function run(config, logCallback) {
             await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
 
             logCallback('Extracting aria labels...');
-            const Output = await page.evaluate((selfUser) => {
-                console.log('Self username to filter:', selfUser); // Debug log
+            const Output = await page.evaluate((selfUser, config) => {
+                console.log('Self username to filter:', selfUser);
                 const elements = document.querySelectorAll('.wrapper_c51b4e');
                 const labels = Array.from(elements)
                     .map(el => {
                         const label = el.getAttribute('aria-label');
-                        // Extract just the username before the comma or status
                         return label ? label.split(',')[0].trim() : null;
                     })
                     .filter(label => {
-                        // More strict filtering:
-                        // 1. Remove null values
-                        // 2. Remove empty strings
-                        // 3. Remove exact matches with self username
                         return label !== null && 
                                label !== '' && 
                                label.toLowerCase() !== (selfUser || '').toLowerCase();
                     });
+
+                // Apply limit during collection if specified
+                if (config.useLimit && config.userLimit) {
+                    const limit = parseInt(config.userLimit);
+                    if (!isNaN(limit) && limit > 0) {
+                        return labels.slice(0, limit);
+                    }
+                }
                 return labels;
-            }, selfUsername);
+            }, selfUsername, config);
 
             logCallback(`Found ${Output.length} usernames (excluding self)`);
             
@@ -150,7 +153,7 @@ async function run(config, logCallback) {
             if (Output.length > 0) {
                 const OutputJson = JSON.stringify(Output, null, 2);
                 fs.writeFileSync('output.json', OutputJson);
-                logCallback('Successfully saved Output.json');
+                logCallback('Successfully saved output.json');
             } else {
                 logCallback('No aria labels found to save');
             }
@@ -186,7 +189,16 @@ async function sendInvites(config, logCallback) {
             throw new Error('No usernames found in output.json');
         }
 
-        logCallback(`Loaded ${usernames.length} usernames from output.json`);
+        let usersToProcess = usernames;
+        if (config.useLimit && config.userLimit) {
+            const limit = parseInt(config.userLimit);
+            if (!isNaN(limit) && limit > 0) {
+                usersToProcess = usernames.slice(0, limit);
+                logCallback(`Using limit: Will process ${usersToProcess.length} users`);
+            }
+        }
+
+        logCallback(`Loaded ${usersToProcess.length} usernames from output.json`);
 
         const browser = await puppeteer.launch({
             executablePath: config.chromePath,
@@ -216,7 +228,7 @@ async function sendInvites(config, logCallback) {
             // Wait for the page to load
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            for (const username of usernames) {
+            for (const username of usersToProcess) {
                 if (isCancelled) {
                     throw new Error('Process cancelled by user');
                 }
@@ -317,9 +329,18 @@ async function messageAll(config, logCallback) {
             throw new Error('No usernames found in output2.json');
         }
 
-        logCallback(`Loaded ${usernames.length} usernames from output2.json`);
+        let usersToProcess = usernames;
+        if (config.useLimit && config.userLimit) {
+            const limit = parseInt(config.userLimit);
+            if (!isNaN(limit) && limit > 0) {
+                usersToProcess = usernames.slice(0, limit);
+                logCallback(`Using limit: Will process ${usersToProcess.length} users`);
+            }
+        }
 
-        for (const username of usernames) {
+        logCallback(`Loaded ${usersToProcess.length} usernames from output2.json`);
+
+        for (const username of usersToProcess) {
             if (isCancelled) {
                 throw new Error('Process cancelled by user');
             }
@@ -469,26 +490,29 @@ async function runForMessaging(config, logCallback) {
             await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
 
             logCallback('Extracting aria labels...');
-            const Output = await page.evaluate((selfUser) => {
-                console.log('Self username to filter:', selfUser); // Debug log
+            const Output = await page.evaluate((selfUser, config) => {
+                console.log('Self username to filter:', selfUser);
                 const elements = document.querySelectorAll('.wrapper_c51b4e');
                 const labels = Array.from(elements)
                     .map(el => {
                         const label = el.getAttribute('aria-label');
-                        // Extract just the username before the comma or status
                         return label ? label.split(',')[0].trim() : null;
                     })
                     .filter(label => {
-                        // More strict filtering:
-                        // 1. Remove null values
-                        // 2. Remove empty strings
-                        // 3. Remove exact matches with self username
                         return label !== null && 
                                label !== '' && 
                                label.toLowerCase() !== (selfUser || '').toLowerCase();
                     });
+
+                // Apply limit during collection if specified
+                if (config.useLimit && config.userLimit) {
+                    const limit = parseInt(config.userLimit);
+                    if (!isNaN(limit) && limit > 0) {
+                        return labels.slice(0, limit);
+                    }
+                }
                 return labels;
-            }, selfUsername);
+            }, selfUsername, config);
 
             logCallback(`Found ${Output.length} usernames (excluding self)`);
             

@@ -32,7 +32,9 @@ document.getElementById('startScraping').addEventListener('click', () => {
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
-        userDataDir: document.getElementById('userDataDir').value
+        userDataDir: document.getElementById('userDataDir').value,
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
 
     // Add validation
@@ -61,7 +63,9 @@ document.getElementById('inviteAll').addEventListener('click', () => {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value || 'hi'
+        customMessage: document.getElementById('customMessage').value || 'hi',
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
 
     // Add validation
@@ -91,7 +95,9 @@ document.getElementById('messageAll').addEventListener('click', () => {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value
+        customMessage: document.getElementById('customMessage').value,
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
     
     // Add validation
