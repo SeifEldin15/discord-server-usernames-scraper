@@ -89,6 +89,8 @@
             padding: 20px;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
             z-index: 1000;
+            display: flex;
+            flex-direction: column;
         }
 
         .editor-header {
@@ -96,18 +98,47 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .editor-header .buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .editor-header button {
+            padding: 8px 16px;
+            background-color: #7289da;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
 
         #jsonEditor {
             width: 100%;
-            height: calc(100% - 50px);
+            height: calc(100% - 60px);
             background-color: #40444b;
-            color: #ffffff;
+            color: #dcddde;
             border: 1px solid #202225;
             border-radius: 4px;
-            padding: 10px;
-            font-family: monospace;
+            padding: 15px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
             resize: none;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        #jsonEditor:focus {
+            border-color: #7289da;
+        }
+
+        .editor-header h3 {
+            margin: 0;
+            color: #ffffff;
         }
 
         .limit-container {
@@ -116,13 +147,24 @@
             gap: 10px;
         }
         
+        .limit-container input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .limit-container label {
+            margin: 0;
+            display: inline;
+        }
+        
         input[type="number"] {
-            width: 100px;
-            padding: 8px;
+            width: 120px;
+            height: 32px;
+            padding: 0 4px;
             border-radius: 4px;
             border: 1px solid #202225;
             background-color: #40444b;
             color: #ffffff;
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -167,8 +209,10 @@
         <div id="editorContainer" style="display: none;">
             <div class="editor-header">
                 <h3>Edit Username List</h3>
-                <button id="saveEditor">Save</button>
-                <button id="closeEditor">Close</button>
+                <div class="buttons">
+                    <button id="saveEditor">Save</button>
+                    <button id="closeEditor">Close</button>
+                </div>
             </div>
             <textarea id="jsonEditor"></textarea>
         </div>
@@ -177,5 +221,11 @@
         <div id="log"></div>
     </div>
     <script src="renderer.js"></script>
+    <div id="customAlert" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000;">
+        <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #36393f; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+            <p id="alertMessage" style="color: #ffffff; margin-bottom: 20px;"></p>
+            <button onclick="closeCustomAlert()" style="background-color: #7289da; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">OK</button>
+        </div>
+    </div>
 </body>
 </html>
