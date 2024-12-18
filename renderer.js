@@ -5,6 +5,17 @@ const path = require('path');
 window.addEventListener('DOMContentLoaded', async () => {
     ipcRenderer.send('get-default-paths');
     document.getElementById('cancelProcess').style.display = 'none';
+    
+    const limitInput = document.getElementById('userLimit');
+    const useLimit = document.getElementById('useLimit');
+    
+    // Initially disable the input
+    limitInput.disabled = !useLimit.checked;
+    
+    // Add event listener to checkbox
+    useLimit.addEventListener('change', (e) => {
+        limitInput.disabled = !e.target.checked;
+    });
 });
 
 ipcRenderer.on('default-paths', (event, paths) => {
