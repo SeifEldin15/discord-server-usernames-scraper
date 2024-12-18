@@ -227,6 +227,12 @@ ipcRenderer.on('json-save-error', (event, error) => {
 document.getElementById('cancelProcess').addEventListener('click', () => {
     ipcRenderer.send('cancel-processes');
     document.getElementById('status').textContent = 'Status: Cancelling...';
+    
+    // Disable all action buttons during cancellation
+    document.getElementById('startScraping').disabled = true;
+    document.getElementById('inviteAll').disabled = true;
+    document.getElementById('messageAll').disabled = true;
+    document.getElementById('cancelProcess').disabled = true;
 });
 
 // Add new IPC listener for cancel confirmation
@@ -235,6 +241,7 @@ ipcRenderer.on('processes-cancelled', () => {
     document.getElementById('startScraping').disabled = false;
     document.getElementById('inviteAll').disabled = false;
     document.getElementById('messageAll').disabled = false;
+    document.getElementById('cancelProcess').disabled = false;
     document.getElementById('cancelProcess').style.display = 'none';
 });
 

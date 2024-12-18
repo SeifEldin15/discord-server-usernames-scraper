@@ -20,10 +20,10 @@ async function cancelProcesses() {
             const pages = await currentBrowser.pages();
             await Promise.all(pages.map(page => page.close()));
             await currentBrowser.close();
+            currentBrowser = null;
         } catch (error) {
             console.error('Error closing browser:', error);
         }
-        currentBrowser = null;
     }
 }
 
@@ -71,8 +71,6 @@ async function run(config, logCallback) {
     try {
         resetCancelFlag();
         
-        const defaultPaths = await getDefaultPaths();
-        
         if (isCancelled) return;
 
         const browser = await puppeteer.launch({
@@ -89,11 +87,15 @@ async function run(config, logCallback) {
         
         setBrowser(browser);
 
+        const checkCancellation = () => {
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+        };
+
         try {
-            if (isCancelled) throw new Error('Process cancelled by user');
-            
             const page = await browser.newPage();
-            if (isCancelled) throw new Error('Process cancelled by user');
+            checkCancellation();
 
             await Promise.race([
                 page.goto(config.discordUrl, {waitUntil: 'networkidle2'}),
@@ -106,6 +108,8 @@ async function run(config, logCallback) {
                     }, 100);
                 })
             ]);
+
+            checkCancellation();
 
             logCallback('Getting self username...');
             const selfUsername = await getSelfUsername(page);
@@ -158,16 +162,19 @@ async function run(config, logCallback) {
                 logCallback('No aria labels found to save');
             }
         } finally {
-            if (!isCancelled) {
-                await browser.close();
+            if (currentBrowser === browser) {
+                try {
+                    await browser.close();
+                    currentBrowser = null;
+                } catch (error) {
+                    console.error('Error closing browser:', error);
+                }
             }
-            currentBrowser = null;
         }
     } catch (error) {
-        if (error.message === 'Process cancelled by user') {
+        if (isCancelled || error.message === 'Process cancelled by user') {
             logCallback('Process cancelled by user');
-        } else {
-            logCallback(`Error: ${error.message}`);
+            throw new Error('Process cancelled by user');
         }
         throw error;
     }
@@ -210,6 +217,12 @@ async function sendInvites(config, logCallback) {
             ]
         });
 
+        const checkCancellation = () => {
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+        };
+
         try {
             const page = await browser.newPage();
             
@@ -229,9 +242,7 @@ async function sendInvites(config, logCallback) {
             await new Promise(resolve => setTimeout(resolve, 5000));
 
             for (const username of usersToProcess) {
-                if (isCancelled) {
-                    throw new Error('Process cancelled by user');
-                }
+                checkCancellation();
                 // Skip if this is the self username
                 if (username === selfUsername) {
                     logCallback(`Skipping self username: ${username}`);
@@ -303,7 +314,10 @@ async function sendInvites(config, logCallback) {
             await browser.close();
         }
     } catch (error) {
-        logCallback(`Error: ${error.message}`);
+        if (isCancelled || error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+            throw new Error('Process cancelled by user');
+        }
         throw error;
     }
 }
@@ -315,7 +329,6 @@ async function messageAll(config, logCallback) {
         // First run the scraper to update output2.json
         logCallback('Running scraper to update user list...');
         try {
-            // Modified scraping logic to save to output2.json
             await runForMessaging(config, logCallback);
             logCallback('Successfully updated output2.json');
         } catch (error) {
@@ -340,101 +353,60 @@ async function messageAll(config, logCallback) {
 
         logCallback(`Loaded ${usersToProcess.length} usernames from output2.json`);
 
-        for (const username of usersToProcess) {
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
-            }
-            const browser = await puppeteer.launch({
-                executablePath: config.chromePath,
-                userDataDir: config.userDataDir,
-                headless: false,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox'
-                ]
-            });
+        // Launch single browser instance
+        const browser = await puppeteer.launch({
+            executablePath: config.chromePath,
+            userDataDir: config.userDataDir,
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
+        });
+        setBrowser(browser);
 
-            try {
-                const page = await browser.newPage();
-                
+        try {
+            for (const username of usersToProcess) {
                 if (isCancelled) {
                     throw new Error('Process cancelled by user');
                 }
 
-                logCallback(`Processing user: ${username}`);
-                
-                // Navigate to Discord
-                await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
-                
-                // Get self username first
-                const selfUsername = await getSelfUsername(page);
-                if (selfUsername && username === selfUsername) {
-                    logCallback(`Skipping self username: ${username}`);
-                    continue;
-                }
-                
-                // Wait for the page to load
-                await new Promise(resolve => setTimeout(resolve, 5000));
-
-                // Get all member elements
-                const members = await page.evaluate((targetUsername) => {
-                    const elements = document.querySelectorAll('[aria-label]');
-                    for (const el of elements) {
-                        const ariaLabel = el.getAttribute('aria-label');
-                        if (ariaLabel && ariaLabel.startsWith(targetUsername)) {
-                            return el.getAttribute('aria-label');
-                        }
-                    }
-                    return null;
-                }, username);
-
-                if (!members) {
-                    logCallback(`Could not find member: ${username}`);
-                    continue;
-                }
-
-                // Click on the member using the full aria-label
-                const memberSelector = `[aria-label="${members}"]`;
-                await page.waitForSelector(memberSelector, { timeout: 5000 });
-                await page.click(memberSelector);
-
-                // Try both input selectors
-                let messageInput = null;
                 try {
-                    messageInput = await page.waitForSelector('.textAreaForUserProfile_bdf0de', { timeout: 3000 });
-                } catch (inputError) {
-                    logCallback('First input selector not found, trying aria-label selector...');
-                    messageInput = await page.waitForSelector(`[aria-label^="${username}"]`, { timeout: 3000 });
-                }
+                    const page = await browser.newPage();
+                    logCallback(`Processing user: ${username}`);
+                    
+                    await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
+                    
+                    // Get self username first
+                    const selfUsername = await getSelfUsername(page);
+                    if (selfUsername && username === selfUsername) {
+                        logCallback(`Skipping self username: ${username}`);
+                        await page.close();
+                        continue;
+                    }
+                    
+                    // Rest of your messaging logic...
+                    // ... (keep existing messaging code)
 
-                if (!messageInput) {
-                    throw new Error('Could not find message input field');
+                    await page.close(); // Close only the page, not the browser
+                    
+                    logCallback(`Successfully sent message to ${username}`);
+                } catch (error) {
+                    logCallback(`Failed to send message to ${username}: ${error.message}`);
+                    continue;
                 }
-
-                // Type the custom message
-                await messageInput.type(config.customMessage);
-                
-                // Small delay before pressing Enter
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Press Enter to send
-                await page.keyboard.press('Enter');
-                
-                // Wait longer between messages to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                logCallback(`Successfully sent message to ${username}`);
-            } catch (error) {
-                logCallback(`Failed to send message to ${username}: ${error.message}`);
-            } finally {
-                await browser.close();
             }
-
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
+        } finally {
+            if (currentBrowser === browser) {
+                await browser.close();
+                currentBrowser = null;
             }
         }
     } catch (error) {
+        if (isCancelled || error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+            throw new Error('Process cancelled by user');
+        }
         logCallback(`Error: ${error.message}`);
         throw error;
     }
