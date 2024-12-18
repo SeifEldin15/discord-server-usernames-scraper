@@ -54,7 +54,7 @@ async function getSelfUsername(page) {
             const avatarElement = document.querySelector('.avatar_b2ca13');
             if (avatarElement) {
                 const ariaLabel = avatarElement.getAttribute('aria-label');
-                return ariaLabel || null;
+                return ariaLabel ? ariaLabel.split(',')[0].trim() : null;
             }
             return null;
         });
@@ -115,16 +115,27 @@ async function run(config, logCallback) {
 
             logCallback('Extracting aria labels...');
             const Output = await page.evaluate((selfUser) => {
+                console.log('Self username to filter:', selfUser); // Debug log
                 const elements = document.querySelectorAll('.wrapper_c51b4e');
-                const labels = Array.from(elements).map(el => {
-                    const label = el.getAttribute('aria-label');
-                    return label ? label.trim() : null;
-                })
-                .filter(label => label !== null && label !== selfUser);
+                const labels = Array.from(elements)
+                    .map(el => {
+                        const label = el.getAttribute('aria-label');
+                        // Extract just the username before the comma or status
+                        return label ? label.split(',')[0].trim() : null;
+                    })
+                    .filter(label => {
+                        // More strict filtering:
+                        // 1. Remove null values
+                        // 2. Remove empty strings
+                        // 3. Remove exact matches with self username
+                        return label !== null && 
+                               label !== '' && 
+                               label.toLowerCase() !== (selfUser || '').toLowerCase();
+                    });
                 return labels;
             }, selfUsername);
 
-            logCallback(`Found ${Output.length} aria labels`);
+            logCallback(`Found ${Output.length} usernames (excluding self)`);
             
             if (isCancelled) {
                 throw new Error('Process cancelled by user');
