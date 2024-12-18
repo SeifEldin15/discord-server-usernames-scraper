@@ -32,8 +32,24 @@ document.getElementById('startScraping').addEventListener('click', () => {
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
-        userDataDir: document.getElementById('userDataDir').value
+        userDataDir: document.getElementById('userDataDir').value,
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
+
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
 
     document.getElementById('status').textContent = 'Status: Scraping...';
     document.getElementById('startScraping').disabled = true;
@@ -47,8 +63,24 @@ document.getElementById('inviteAll').addEventListener('click', () => {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value || 'hi'
+        customMessage: document.getElementById('customMessage').value || 'hi',
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
+
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
     
     document.getElementById('status').textContent = 'Status: Sending invites...';
     document.getElementById('inviteAll').disabled = true;
@@ -58,15 +90,31 @@ document.getElementById('inviteAll').addEventListener('click', () => {
 });
 
 document.getElementById('messageAll').addEventListener('click', () => {
+    lastClickedButton = 'messageAll';
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value || 'hi'
+        customMessage: document.getElementById('customMessage').value,
+        useLimit: document.getElementById('useLimit').checked,
+        userLimit: document.getElementById('userLimit').value
     };
     
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
     if (!config.customMessage.trim()) {
-        document.getElementById('status').textContent = 'Status: Please enter a message';
+        alert('Please enter a message to send');
         return;
     }
     
@@ -127,8 +175,12 @@ document.getElementById('openEditor').addEventListener('click', () => {
     const editorContainer = document.getElementById('editorContainer');
     const jsonEditor = document.getElementById('jsonEditor');
     
-    // Read the current output.json file
-    ipcRenderer.send('read-json-file');
+    // Read the appropriate JSON file based on context
+    if (lastClickedButton === 'messageAll') {
+        ipcRenderer.send('read-json-file-messaging');
+    } else {
+        ipcRenderer.send('read-json-file');
+    }
 });
 
 document.getElementById('closeEditor').addEventListener('click', () => {
@@ -175,6 +227,12 @@ ipcRenderer.on('json-save-error', (event, error) => {
 document.getElementById('cancelProcess').addEventListener('click', () => {
     ipcRenderer.send('cancel-processes');
     document.getElementById('status').textContent = 'Status: Cancelling...';
+    
+    // Disable all action buttons during cancellation
+    document.getElementById('startScraping').disabled = true;
+    document.getElementById('inviteAll').disabled = true;
+    document.getElementById('messageAll').disabled = true;
+    document.getElementById('cancelProcess').disabled = true;
 });
 
 // Add new IPC listener for cancel confirmation
@@ -183,5 +241,23 @@ ipcRenderer.on('processes-cancelled', () => {
     document.getElementById('startScraping').disabled = false;
     document.getElementById('inviteAll').disabled = false;
     document.getElementById('messageAll').disabled = false;
+    document.getElementById('cancelProcess').disabled = false;
     document.getElementById('cancelProcess').style.display = 'none';
 });
+
+// Add new IPC listener for messaging JSON content
+ipcRenderer.on('json-file-content-messaging', (event, content) => {
+    const jsonEditor = document.getElementById('jsonEditor');
+    const editorContainer = document.getElementById('editorContainer');
+    
+    try {
+        const formattedJson = JSON.stringify(JSON.parse(content), null, 2);
+        jsonEditor.value = formattedJson;
+        editorContainer.style.display = 'block';
+    } catch (error) {
+        document.getElementById('status').textContent = 'Status: Error loading JSON file';
+    }
+});
+
+// Add variable to track which button was last clicked
+let lastClickedButton = '';

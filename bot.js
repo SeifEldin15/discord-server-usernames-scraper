@@ -17,11 +17,13 @@ async function cancelProcesses() {
     isCancelled = true;
     if (currentBrowser) {
         try {
+            const pages = await currentBrowser.pages();
+            await Promise.all(pages.map(page => page.close()));
             await currentBrowser.close();
+            currentBrowser = null;
         } catch (error) {
             console.error('Error closing browser:', error);
         }
-        currentBrowser = null;
     }
 }
 
@@ -69,11 +71,7 @@ async function run(config, logCallback) {
     try {
         resetCancelFlag();
         
-        const defaultPaths = await getDefaultPaths();
-        
-        if (isCancelled) {
-            throw new Error('Process cancelled by user');
-        }
+        if (isCancelled) return;
 
         const browser = await puppeteer.launch({
             executablePath: config.chromePath || defaultPaths.chromePath,
@@ -86,20 +84,32 @@ async function run(config, logCallback) {
             ],
             ignoreDefaultArgs: ['--disable-extensions']
         });
+        
+        setBrowser(browser);
+
+        const checkCancellation = () => {
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+        };
 
         try {
             const page = await browser.newPage();
-            
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
-            }
+            checkCancellation();
 
-            logCallback('Navigating to Discord...');
-            await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
-            
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
-            }
+            await Promise.race([
+                page.goto(config.discordUrl, {waitUntil: 'networkidle2'}),
+                new Promise((_, reject) => {
+                    const checkInterval = setInterval(() => {
+                        if (isCancelled) {
+                            clearInterval(checkInterval);
+                            reject(new Error('Process cancelled by user'));
+                        }
+                    }, 100);
+                })
+            ]);
+
+            checkCancellation();
 
             logCallback('Getting self username...');
             const selfUsername = await getSelfUsername(page);
@@ -114,26 +124,29 @@ async function run(config, logCallback) {
             await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
 
             logCallback('Extracting aria labels...');
-            const Output = await page.evaluate((selfUser) => {
-                console.log('Self username to filter:', selfUser); // Debug log
+            const Output = await page.evaluate((selfUser, config) => {
+                console.log('Self username to filter:', selfUser);
                 const elements = document.querySelectorAll('.wrapper_c51b4e');
                 const labels = Array.from(elements)
                     .map(el => {
                         const label = el.getAttribute('aria-label');
-                        // Extract just the username before the comma or status
                         return label ? label.split(',')[0].trim() : null;
                     })
                     .filter(label => {
-                        // More strict filtering:
-                        // 1. Remove null values
-                        // 2. Remove empty strings
-                        // 3. Remove exact matches with self username
                         return label !== null && 
                                label !== '' && 
                                label.toLowerCase() !== (selfUser || '').toLowerCase();
                     });
+
+                // Apply limit during collection if specified
+                if (config.useLimit && config.userLimit) {
+                    const limit = parseInt(config.userLimit);
+                    if (!isNaN(limit) && limit > 0) {
+                        return labels.slice(0, limit);
+                    }
+                }
                 return labels;
-            }, selfUsername);
+            }, selfUsername, config);
 
             logCallback(`Found ${Output.length} usernames (excluding self)`);
             
@@ -144,15 +157,25 @@ async function run(config, logCallback) {
             if (Output.length > 0) {
                 const OutputJson = JSON.stringify(Output, null, 2);
                 fs.writeFileSync('output.json', OutputJson);
-                logCallback('Successfully saved Output.json');
+                logCallback('Successfully saved output.json');
             } else {
                 logCallback('No aria labels found to save');
             }
         } finally {
-            await browser.close();
+            if (currentBrowser === browser) {
+                try {
+                    await browser.close();
+                    currentBrowser = null;
+                } catch (error) {
+                    console.error('Error closing browser:', error);
+                }
+            }
         }
     } catch (error) {
-        logCallback(`Error: ${error.message}`);
+        if (isCancelled || error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+            throw new Error('Process cancelled by user');
+        }
         throw error;
     }
 }
@@ -173,7 +196,16 @@ async function sendInvites(config, logCallback) {
             throw new Error('No usernames found in output.json');
         }
 
-        logCallback(`Loaded ${usernames.length} usernames from output.json`);
+        let usersToProcess = usernames;
+        if (config.useLimit && config.userLimit) {
+            const limit = parseInt(config.userLimit);
+            if (!isNaN(limit) && limit > 0) {
+                usersToProcess = usernames.slice(0, limit);
+                logCallback(`Using limit: Will process ${usersToProcess.length} users`);
+            }
+        }
+
+        logCallback(`Loaded ${usersToProcess.length} usernames from output.json`);
 
         const browser = await puppeteer.launch({
             executablePath: config.chromePath,
@@ -184,6 +216,12 @@ async function sendInvites(config, logCallback) {
                 '--disable-setuid-sandbox'
             ]
         });
+
+        const checkCancellation = () => {
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+        };
 
         try {
             const page = await browser.newPage();
@@ -203,10 +241,8 @@ async function sendInvites(config, logCallback) {
             // Wait for the page to load
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            for (const username of usernames) {
-                if (isCancelled) {
-                    throw new Error('Process cancelled by user');
-                }
+            for (const username of usersToProcess) {
+                checkCancellation();
                 // Skip if this is the self username
                 if (username === selfUsername) {
                     logCallback(`Skipping self username: ${username}`);
@@ -278,7 +314,10 @@ async function sendInvites(config, logCallback) {
             await browser.close();
         }
     } catch (error) {
-        logCallback(`Error: ${error.message}`);
+        if (isCancelled || error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+            throw new Error('Process cancelled by user');
+        }
         throw error;
     }
 }
@@ -287,117 +326,181 @@ async function messageAll(config, logCallback) {
     try {
         resetCancelFlag();
 
-        // First run the scraper to update the output.json
+        // First run the scraper to update output2.json
         logCallback('Running scraper to update user list...');
         try {
-            await run(config, logCallback);
-            logCallback('Successfully updated output.json');
+            await runForMessaging(config, logCallback);
+            logCallback('Successfully updated output2.json');
         } catch (error) {
             logCallback(`Failed to update user list: ${error.message}`);
             throw error;
         }
 
-        const outputPath = path.join(process.cwd(), 'output.json');
+        const outputPath = path.join(process.cwd(), 'output2.json');
         const usernames = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
         if (!usernames || usernames.length === 0) {
-            throw new Error('No usernames found in output.json');
+            throw new Error('No usernames found in output2.json');
         }
 
-        logCallback(`Loaded ${usernames.length} usernames from output.json`);
-
-        for (const username of usernames) {
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
+        let usersToProcess = usernames;
+        if (config.useLimit && config.userLimit) {
+            const limit = parseInt(config.userLimit);
+            if (!isNaN(limit) && limit > 0) {
+                usersToProcess = usernames.slice(0, limit);
+                logCallback(`Using limit: Will process ${usersToProcess.length} users`);
             }
-            const browser = await puppeteer.launch({
-                executablePath: config.chromePath,
-                userDataDir: config.userDataDir,
-                headless: false,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox'
-                ]
-            });
+        }
 
-            try {
-                const page = await browser.newPage();
-                
+        logCallback(`Loaded ${usersToProcess.length} usernames from output2.json`);
+
+        // Launch single browser instance
+        const browser = await puppeteer.launch({
+            executablePath: config.chromePath,
+            userDataDir: config.userDataDir,
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
+        });
+        setBrowser(browser);
+
+        try {
+            for (const username of usersToProcess) {
                 if (isCancelled) {
                     throw new Error('Process cancelled by user');
                 }
 
-                logCallback(`Processing user: ${username}`);
-                
-                // Navigate to Discord
-                await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
-                
-                // Get self username first
-                const selfUsername = await getSelfUsername(page);
-                if (selfUsername && username === selfUsername) {
-                    logCallback(`Skipping self username: ${username}`);
-                    continue;
-                }
-                
-                // Wait for the page to load
-                await new Promise(resolve => setTimeout(resolve, 5000));
-
-                // Get all member elements
-                const members = await page.evaluate((targetUsername) => {
-                    const elements = document.querySelectorAll('[aria-label]');
-                    for (const el of elements) {
-                        const ariaLabel = el.getAttribute('aria-label');
-                        if (ariaLabel && ariaLabel.startsWith(targetUsername)) {
-                            return el.getAttribute('aria-label');
-                        }
-                    }
-                    return null;
-                }, username);
-
-                if (!members) {
-                    logCallback(`Could not find member: ${username}`);
-                    continue;
-                }
-
-                // Click on the member using the full aria-label
-                const memberSelector = `[aria-label="${members}"]`;
-                await page.waitForSelector(memberSelector, { timeout: 5000 });
-                await page.click(memberSelector);
-
-                // Try both input selectors
-                let messageInput = null;
                 try {
-                    messageInput = await page.waitForSelector('.textAreaForUserProfile_bdf0de', { timeout: 3000 });
-                } catch (inputError) {
-                    logCallback('First input selector not found, trying aria-label selector...');
-                    messageInput = await page.waitForSelector(`[aria-label^="${username}"]`, { timeout: 3000 });
-                }
+                    const page = await browser.newPage();
+                    logCallback(`Processing user: ${username}`);
+                    
+                    await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
+                    
+                    // Get self username first
+                    const selfUsername = await getSelfUsername(page);
+                    if (selfUsername && username === selfUsername) {
+                        logCallback(`Skipping self username: ${username}`);
+                        await page.close();
+                        continue;
+                    }
+                    
+                    // Rest of your messaging logic...
+                    // ... (keep existing messaging code)
 
-                if (!messageInput) {
-                    throw new Error('Could not find message input field');
+                    await page.close(); // Close only the page, not the browser
+                    
+                    logCallback(`Successfully sent message to ${username}`);
+                } catch (error) {
+                    logCallback(`Failed to send message to ${username}: ${error.message}`);
+                    continue;
                 }
-
-                // Type the custom message
-                await messageInput.type(config.customMessage);
-                
-                // Small delay before pressing Enter
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Press Enter to send
-                await page.keyboard.press('Enter');
-                
-                // Wait longer between messages to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                logCallback(`Successfully sent message to ${username}`);
-            } catch (error) {
-                logCallback(`Failed to send message to ${username}: ${error.message}`);
-            } finally {
-                await browser.close();
             }
+        } finally {
+            if (currentBrowser === browser) {
+                await browser.close();
+                currentBrowser = null;
+            }
+        }
+    } catch (error) {
+        if (isCancelled || error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+            throw new Error('Process cancelled by user');
+        }
+        logCallback(`Error: ${error.message}`);
+        throw error;
+    }
+}
 
+// New function - copy of run() but saves to output2.json
+async function runForMessaging(config, logCallback) {
+    try {
+        resetCancelFlag();
+        
+        const defaultPaths = await getDefaultPaths();
+        
+        if (isCancelled) {
+            throw new Error('Process cancelled by user');
+        }
+
+        const browser = await puppeteer.launch({
+            executablePath: config.chromePath || defaultPaths.chromePath,
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                `--user-data-dir=${config.userDataDir || defaultPaths.userDataDir}`,
+                '--profile-directory=Default'
+            ],
+            ignoreDefaultArgs: ['--disable-extensions']
+        });
+
+        try {
+            const page = await browser.newPage();
+            
             if (isCancelled) {
                 throw new Error('Process cancelled by user');
             }
+
+            logCallback('Navigating to Discord...');
+            await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
+            
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+
+            logCallback('Getting self username...');
+            const selfUsername = await getSelfUsername(page);
+            if (selfUsername) {
+                logCallback(`Found self username: ${selfUsername}`);
+            }
+
+            logCallback('Waiting for page to load completely...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            logCallback('Looking for elements...');
+            await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
+
+            logCallback('Extracting aria labels...');
+            const Output = await page.evaluate((selfUser, config) => {
+                console.log('Self username to filter:', selfUser);
+                const elements = document.querySelectorAll('.wrapper_c51b4e');
+                const labels = Array.from(elements)
+                    .map(el => {
+                        const label = el.getAttribute('aria-label');
+                        return label ? label.split(',')[0].trim() : null;
+                    })
+                    .filter(label => {
+                        return label !== null && 
+                               label !== '' && 
+                               label.toLowerCase() !== (selfUser || '').toLowerCase();
+                    });
+
+                // Apply limit during collection if specified
+                if (config.useLimit && config.userLimit) {
+                    const limit = parseInt(config.userLimit);
+                    if (!isNaN(limit) && limit > 0) {
+                        return labels.slice(0, limit);
+                    }
+                }
+                return labels;
+            }, selfUsername, config);
+
+            logCallback(`Found ${Output.length} usernames (excluding self)`);
+            
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+
+            if (Output.length > 0) {
+                const OutputJson = JSON.stringify(Output, null, 2);
+                fs.writeFileSync('output2.json', OutputJson);
+                logCallback('Successfully saved output2.json');
+            } else {
+                logCallback('No aria labels found to save');
+            }
+        } finally {
+            await browser.close();
         }
     } catch (error) {
         logCallback(`Error: ${error.message}`);
@@ -411,5 +514,6 @@ module.exports = {
     sendInvites, 
     messageAll, 
     cancelProcesses,
-    setBrowser 
+    setBrowser,
+    runForMessaging
 };

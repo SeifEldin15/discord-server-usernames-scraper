@@ -10,7 +10,8 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
-        }
+        },
+        icon: path.join(__dirname, 'assets/icon.png')
     });
 
     win.loadFile('index.html');
@@ -99,6 +100,16 @@ ipcMain.on('read-json-file', (event) => {
         event.reply('json-file-content', content);
     } catch (error) {
         event.reply('json-file-content', '[]');
+    }
+});
+
+ipcMain.on('read-json-file-messaging', (event) => {
+    try {
+        const filePath = path.join(process.cwd(), 'output2.json');
+        const content = fs.readFileSync(filePath, 'utf8');
+        event.reply('json-file-content-messaging', content);
+    } catch (error) {
+        event.reply('json-file-content-messaging', '[]');
     }
 });
 
