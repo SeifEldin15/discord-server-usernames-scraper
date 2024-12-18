@@ -40,10 +40,6 @@ document.getElementById('startScraping').addEventListener('click', () => {
     ipcRenderer.send('start-scraping', config);
 });
 
-document.getElementById('openList').addEventListener('click', () => {
-    ipcRenderer.send('open-list');
-});
-
 document.getElementById('inviteAll').addEventListener('click', () => {
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
@@ -163,4 +159,18 @@ ipcRenderer.on('json-save-success', () => {
 
 ipcRenderer.on('json-save-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Error saving JSON - ${error}`;
+});
+
+// Add new event listener for cancel button
+document.getElementById('cancelProcess').addEventListener('click', () => {
+    ipcRenderer.send('cancel-processes');
+    document.getElementById('status').textContent = 'Status: Cancelling...';
+});
+
+// Add new IPC listener for cancel confirmation
+ipcRenderer.on('processes-cancelled', () => {
+    document.getElementById('status').textContent = 'Status: Cancelled';
+    document.getElementById('startScraping').disabled = false;
+    document.getElementById('inviteAll').disabled = false;
+    document.getElementById('messageAll').disabled = false;
 });

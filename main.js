@@ -70,19 +70,6 @@ ipcMain.on('browse-userdata', async (event) => {
     }
 });
 
-ipcMain.on('open-list', async () => {
-    const filePath = path.join(process.cwd(), 'Output.json');
-    if (fs.existsSync(filePath)) {
-        shell.openPath(filePath);
-    } else {
-        dialog.showMessageBox({
-            type: 'info',
-            title: 'File Not Found',
-            message: 'The username list has not been created yet. Please run the scraper first.'
-        });
-    }
-});
-
 ipcMain.on('start-inviting', async (event, config) => {
     try {
         await bot.sendInvites(config, (message) => {
@@ -123,4 +110,9 @@ ipcMain.on('save-json-file', (event, content) => {
     } catch (error) {
         event.reply('json-save-error', error.message);
     }
+});
+
+ipcMain.on('cancel-processes', (event) => {
+    bot.cancelProcesses();
+    event.reply('processes-cancelled');
 });
