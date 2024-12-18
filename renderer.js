@@ -35,6 +35,20 @@ document.getElementById('startScraping').addEventListener('click', () => {
         userDataDir: document.getElementById('userDataDir').value
     };
 
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
+
     document.getElementById('status').textContent = 'Status: Scraping...';
     document.getElementById('startScraping').disabled = true;
     document.getElementById('cancelProcess').style.display = 'inline-block';
@@ -49,6 +63,20 @@ document.getElementById('inviteAll').addEventListener('click', () => {
         userDataDir: document.getElementById('userDataDir').value,
         customMessage: document.getElementById('customMessage').value || 'hi'
     };
+
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
     
     document.getElementById('status').textContent = 'Status: Sending invites...';
     document.getElementById('inviteAll').disabled = true;
@@ -63,11 +91,24 @@ document.getElementById('messageAll').addEventListener('click', () => {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value || 'hi'
+        customMessage: document.getElementById('customMessage').value
     };
     
+    // Add validation
+    if (!config.discordUrl.trim()) {
+        alert('Please enter a Discord server URL');
+        return;
+    }
+    if (!config.chromePath.trim()) {
+        alert('Please select Chrome executable path');
+        return;
+    }
+    if (!config.userDataDir.trim()) {
+        alert('Please select User Data Directory');
+        return;
+    }
     if (!config.customMessage.trim()) {
-        document.getElementById('status').textContent = 'Status: Please enter a message';
+        alert('Please enter a message to send');
         return;
     }
     
