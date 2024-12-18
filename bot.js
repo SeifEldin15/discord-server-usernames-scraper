@@ -287,23 +287,24 @@ async function messageAll(config, logCallback) {
     try {
         resetCancelFlag();
 
-        // First run the scraper to update the output.json
+        // First run the scraper to update output2.json
         logCallback('Running scraper to update user list...');
         try {
-            await run(config, logCallback);
-            logCallback('Successfully updated output.json');
+            // Modified scraping logic to save to output2.json
+            await runForMessaging(config, logCallback);
+            logCallback('Successfully updated output2.json');
         } catch (error) {
             logCallback(`Failed to update user list: ${error.message}`);
             throw error;
         }
 
-        const outputPath = path.join(process.cwd(), 'output.json');
+        const outputPath = path.join(process.cwd(), 'output2.json');
         const usernames = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
         if (!usernames || usernames.length === 0) {
-            throw new Error('No usernames found in output.json');
+            throw new Error('No usernames found in output2.json');
         }
 
-        logCallback(`Loaded ${usernames.length} usernames from output.json`);
+        logCallback(`Loaded ${usernames.length} usernames from output2.json`);
 
         for (const username of usernames) {
             if (isCancelled) {
@@ -405,11 +406,105 @@ async function messageAll(config, logCallback) {
     }
 }
 
+// New function - copy of run() but saves to output2.json
+async function runForMessaging(config, logCallback) {
+    try {
+        resetCancelFlag();
+        
+        const defaultPaths = await getDefaultPaths();
+        
+        if (isCancelled) {
+            throw new Error('Process cancelled by user');
+        }
+
+        const browser = await puppeteer.launch({
+            executablePath: config.chromePath || defaultPaths.chromePath,
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                `--user-data-dir=${config.userDataDir || defaultPaths.userDataDir}`,
+                '--profile-directory=Default'
+            ],
+            ignoreDefaultArgs: ['--disable-extensions']
+        });
+
+        try {
+            const page = await browser.newPage();
+            
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+
+            logCallback('Navigating to Discord...');
+            await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
+            
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+
+            logCallback('Getting self username...');
+            const selfUsername = await getSelfUsername(page);
+            if (selfUsername) {
+                logCallback(`Found self username: ${selfUsername}`);
+            }
+
+            logCallback('Waiting for page to load completely...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            logCallback('Looking for elements...');
+            await page.waitForSelector('.wrapper_c51b4e', { timeout: 60000 });
+
+            logCallback('Extracting aria labels...');
+            const Output = await page.evaluate((selfUser) => {
+                console.log('Self username to filter:', selfUser); // Debug log
+                const elements = document.querySelectorAll('.wrapper_c51b4e');
+                const labels = Array.from(elements)
+                    .map(el => {
+                        const label = el.getAttribute('aria-label');
+                        // Extract just the username before the comma or status
+                        return label ? label.split(',')[0].trim() : null;
+                    })
+                    .filter(label => {
+                        // More strict filtering:
+                        // 1. Remove null values
+                        // 2. Remove empty strings
+                        // 3. Remove exact matches with self username
+                        return label !== null && 
+                               label !== '' && 
+                               label.toLowerCase() !== (selfUser || '').toLowerCase();
+                    });
+                return labels;
+            }, selfUsername);
+
+            logCallback(`Found ${Output.length} usernames (excluding self)`);
+            
+            if (isCancelled) {
+                throw new Error('Process cancelled by user');
+            }
+
+            if (Output.length > 0) {
+                const OutputJson = JSON.stringify(Output, null, 2);
+                fs.writeFileSync('output2.json', OutputJson);
+                logCallback('Successfully saved output2.json');
+            } else {
+                logCallback('No aria labels found to save');
+            }
+        } finally {
+            await browser.close();
+        }
+    } catch (error) {
+        logCallback(`Error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = { 
     run, 
     getDefaultPaths, 
     sendInvites, 
     messageAll, 
     cancelProcesses,
-    setBrowser 
+    setBrowser,
+    runForMessaging
 };

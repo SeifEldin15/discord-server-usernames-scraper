@@ -102,6 +102,16 @@ ipcMain.on('read-json-file', (event) => {
     }
 });
 
+ipcMain.on('read-json-file-messaging', (event) => {
+    try {
+        const filePath = path.join(process.cwd(), 'output2.json');
+        const content = fs.readFileSync(filePath, 'utf8');
+        event.reply('json-file-content-messaging', content);
+    } catch (error) {
+        event.reply('json-file-content-messaging', '[]');
+    }
+});
+
 ipcMain.on('save-json-file', (event, content) => {
     try {
         const filePath = path.join(process.cwd(), 'output.json');

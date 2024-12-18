@@ -58,6 +58,7 @@ document.getElementById('inviteAll').addEventListener('click', () => {
 });
 
 document.getElementById('messageAll').addEventListener('click', () => {
+    lastClickedButton = 'messageAll';
     const config = {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
@@ -127,8 +128,12 @@ document.getElementById('openEditor').addEventListener('click', () => {
     const editorContainer = document.getElementById('editorContainer');
     const jsonEditor = document.getElementById('jsonEditor');
     
-    // Read the current output.json file
-    ipcRenderer.send('read-json-file');
+    // Read the appropriate JSON file based on context
+    if (lastClickedButton === 'messageAll') {
+        ipcRenderer.send('read-json-file-messaging');
+    } else {
+        ipcRenderer.send('read-json-file');
+    }
 });
 
 document.getElementById('closeEditor').addEventListener('click', () => {
@@ -185,3 +190,20 @@ ipcRenderer.on('processes-cancelled', () => {
     document.getElementById('messageAll').disabled = false;
     document.getElementById('cancelProcess').style.display = 'none';
 });
+
+// Add new IPC listener for messaging JSON content
+ipcRenderer.on('json-file-content-messaging', (event, content) => {
+    const jsonEditor = document.getElementById('jsonEditor');
+    const editorContainer = document.getElementById('editorContainer');
+    
+    try {
+        const formattedJson = JSON.stringify(JSON.parse(content), null, 2);
+        jsonEditor.value = formattedJson;
+        editorContainer.style.display = 'block';
+    } catch (error) {
+        document.getElementById('status').textContent = 'Status: Error loading JSON file';
+    }
+});
+
+// Add variable to track which button was last clicked
+let lastClickedButton = '';
