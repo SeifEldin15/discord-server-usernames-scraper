@@ -4,6 +4,7 @@ const path = require('path');
 // Load default paths when the window loads
 window.addEventListener('DOMContentLoaded', async () => {
     ipcRenderer.send('get-default-paths');
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('default-paths', (event, paths) => {
@@ -36,6 +37,7 @@ document.getElementById('startScraping').addEventListener('click', () => {
 
     document.getElementById('status').textContent = 'Status: Scraping...';
     document.getElementById('startScraping').disabled = true;
+    document.getElementById('cancelProcess').style.display = 'inline-block';
     
     ipcRenderer.send('start-scraping', config);
 });
@@ -50,6 +52,7 @@ document.getElementById('inviteAll').addEventListener('click', () => {
     
     document.getElementById('status').textContent = 'Status: Sending invites...';
     document.getElementById('inviteAll').disabled = true;
+    document.getElementById('cancelProcess').style.display = 'inline-block';
     
     ipcRenderer.send('start-inviting', config);
 });
@@ -69,6 +72,7 @@ document.getElementById('messageAll').addEventListener('click', () => {
     
     document.getElementById('status').textContent = 'Status: Sending messages...';
     document.getElementById('messageAll').disabled = true;
+    document.getElementById('cancelProcess').style.display = 'inline-block';
     
     ipcRenderer.send('start-messaging-all', config);
 });
@@ -86,31 +90,37 @@ ipcRenderer.on('log-message', (event, message) => {
 ipcRenderer.on('scraping-complete', () => {
     document.getElementById('status').textContent = 'Status: Complete';
     document.getElementById('startScraping').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('scraping-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Error - ${error}`;
     document.getElementById('startScraping').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('inviting-complete', () => {
     document.getElementById('status').textContent = 'Status: Invites Sent';
     document.getElementById('inviteAll').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('inviting-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Invite Error - ${error}`;
     document.getElementById('inviteAll').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('messaging-complete', () => {
     document.getElementById('status').textContent = 'Status: Messages Sent';
     document.getElementById('messageAll').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 ipcRenderer.on('messaging-error', (event, error) => {
     document.getElementById('status').textContent = `Status: Messaging Error - ${error}`;
     document.getElementById('messageAll').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
 
 document.getElementById('openEditor').addEventListener('click', () => {
@@ -173,4 +183,5 @@ ipcRenderer.on('processes-cancelled', () => {
     document.getElementById('startScraping').disabled = false;
     document.getElementById('inviteAll').disabled = false;
     document.getElementById('messageAll').disabled = false;
+    document.getElementById('cancelProcess').style.display = 'none';
 });
