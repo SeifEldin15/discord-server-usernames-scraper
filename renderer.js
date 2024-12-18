@@ -1,6 +1,31 @@
 const { ipcRenderer } = require('electron');
 const path = require('path');
 
+// Add these functions at the top of renderer.js
+function showCustomAlert(message, elementToFocus) {
+    const alertDialog = document.getElementById('customAlert');
+    const messageElement = document.getElementById('alertMessage');
+    messageElement.textContent = message;
+    alertDialog.style.display = 'block';
+    
+    // Store the element to focus after closing
+    alertDialog.dataset.focusTarget = elementToFocus;
+}
+
+function closeCustomAlert() {
+    const alertDialog = document.getElementById('customAlert');
+    const elementId = alertDialog.dataset.focusTarget;
+    alertDialog.style.display = 'none';
+    
+    // Restore focus after a short delay
+    setTimeout(() => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.focus();
+        }
+    }, 100);
+}
+
 // Load default paths when the window loads
 window.addEventListener('DOMContentLoaded', async () => {
     ipcRenderer.send('get-default-paths');
@@ -48,17 +73,16 @@ document.getElementById('startScraping').addEventListener('click', () => {
         userLimit: document.getElementById('userLimit').value
     };
 
-    // Add validation
     if (!config.discordUrl.trim()) {
-        alert('Please enter a Discord server URL');
+        showCustomAlert('Please enter a Discord server URL', 'discordUrl');
         return;
     }
     if (!config.chromePath.trim()) {
-        alert('Please select Chrome executable path');
+        showCustomAlert('Please select Chrome executable path', 'chromePath');
         return;
     }
     if (!config.userDataDir.trim()) {
-        alert('Please select User Data Directory');
+        showCustomAlert('Please select User Data Directory', 'userDataDir');
         return;
     }
 
@@ -74,22 +98,25 @@ document.getElementById('inviteAll').addEventListener('click', () => {
         discordUrl: document.getElementById('discordUrl').value,
         chromePath: document.getElementById('chromePath').value,
         userDataDir: document.getElementById('userDataDir').value,
-        customMessage: document.getElementById('customMessage').value || 'hi',
+        customMessage: document.getElementById('customMessage').value,
         useLimit: document.getElementById('useLimit').checked,
         userLimit: document.getElementById('userLimit').value
     };
 
-    // Add validation
     if (!config.discordUrl.trim()) {
-        alert('Please enter a Discord server URL');
+        showCustomAlert('Please enter a Discord server URL', 'discordUrl');
         return;
     }
     if (!config.chromePath.trim()) {
-        alert('Please select Chrome executable path');
+        showCustomAlert('Please select Chrome executable path', 'chromePath');
         return;
     }
     if (!config.userDataDir.trim()) {
-        alert('Please select User Data Directory');
+        showCustomAlert('Please select User Data Directory', 'userDataDir');
+        return;
+    }
+    if (!config.customMessage.trim()) {
+        showCustomAlert('Please enter a message to send', 'customMessage');
         return;
     }
     
@@ -111,21 +138,20 @@ document.getElementById('messageAll').addEventListener('click', () => {
         userLimit: document.getElementById('userLimit').value
     };
     
-    // Add validation
     if (!config.discordUrl.trim()) {
-        alert('Please enter a Discord server URL');
+        showCustomAlert('Please enter a Discord server URL', 'discordUrl');
         return;
     }
     if (!config.chromePath.trim()) {
-        alert('Please select Chrome executable path');
+        showCustomAlert('Please select Chrome executable path', 'chromePath');
         return;
     }
     if (!config.userDataDir.trim()) {
-        alert('Please select User Data Directory');
+        showCustomAlert('Please select User Data Directory', 'userDataDir');
         return;
     }
     if (!config.customMessage.trim()) {
-        alert('Please enter a message to send');
+        showCustomAlert('Please enter a message to send', 'customMessage');
         return;
     }
     
