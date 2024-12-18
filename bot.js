@@ -17,6 +17,8 @@ async function cancelProcesses() {
     isCancelled = true;
     if (currentBrowser) {
         try {
+            const pages = await currentBrowser.pages();
+            await Promise.all(pages.map(page => page.close()));
             await currentBrowser.close();
         } catch (error) {
             console.error('Error closing browser:', error);
@@ -71,9 +73,7 @@ async function run(config, logCallback) {
         
         const defaultPaths = await getDefaultPaths();
         
-        if (isCancelled) {
-            throw new Error('Process cancelled by user');
-        }
+        if (isCancelled) return;
 
         const browser = await puppeteer.launch({
             executablePath: config.chromePath || defaultPaths.chromePath,
@@ -86,20 +86,26 @@ async function run(config, logCallback) {
             ],
             ignoreDefaultArgs: ['--disable-extensions']
         });
+        
+        setBrowser(browser);
 
         try {
+            if (isCancelled) throw new Error('Process cancelled by user');
+            
             const page = await browser.newPage();
-            
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
-            }
+            if (isCancelled) throw new Error('Process cancelled by user');
 
-            logCallback('Navigating to Discord...');
-            await page.goto(config.discordUrl, {waitUntil: 'networkidle2'});
-            
-            if (isCancelled) {
-                throw new Error('Process cancelled by user');
-            }
+            await Promise.race([
+                page.goto(config.discordUrl, {waitUntil: 'networkidle2'}),
+                new Promise((_, reject) => {
+                    const checkInterval = setInterval(() => {
+                        if (isCancelled) {
+                            clearInterval(checkInterval);
+                            reject(new Error('Process cancelled by user'));
+                        }
+                    }, 100);
+                })
+            ]);
 
             logCallback('Getting self username...');
             const selfUsername = await getSelfUsername(page);
@@ -149,10 +155,17 @@ async function run(config, logCallback) {
                 logCallback('No aria labels found to save');
             }
         } finally {
-            await browser.close();
+            if (!isCancelled) {
+                await browser.close();
+            }
+            currentBrowser = null;
         }
     } catch (error) {
-        logCallback(`Error: ${error.message}`);
+        if (error.message === 'Process cancelled by user') {
+            logCallback('Process cancelled by user');
+        } else {
+            logCallback(`Error: ${error.message}`);
+        }
         throw error;
     }
 }
